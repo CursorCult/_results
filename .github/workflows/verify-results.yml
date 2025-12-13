@@ -1,0 +1,35 @@
+name: Verify generated results
+
+on:
+  pull_request:
+    paths:
+      - ".gitmodules"
+      - "_metrics"
+      - "benchmarks/**"
+      - "rules/**"
+      - "rulesets/**"
+      - "scripts/**"
+      - ".github/workflows/verify-results.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Fetch base commit
+        run: git fetch --no-tags --depth=1 origin ${{ github.event.pull_request.base.sha }}
+
+      - name: Regenerate changed results (check)
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 scripts/generate_changed_results.py --check
+
