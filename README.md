@@ -5,7 +5,6 @@ This repo stores **benchmark results** for CursorCult rules and rulesets.
 Benchmarks live in repos named:
 
 - `_benchmark_<RULE>` (benchmarks a specific rule pack)
-- `_benchmark_<RULESET>` (benchmarks a named ruleset)
 
 Benchmarks should publish their results here via PRs so results are:
 
@@ -31,6 +30,8 @@ Example:
 rulesets/<RULESET>/<language>/RESULTS.md
 ```
 
+Ruleset result files should summarize/aggregate results from the relevant per-rule benchmarks.
+
 ## What goes in `RESULTS.md`
 
 At minimum:
@@ -42,4 +43,3 @@ At minimum:
 ## License
 
 Unlicense / public domain. See `LICENSE`.
-
