@@ -34,7 +34,7 @@ python3 scripts/generate_changed_results.py
 
 4. Commit the updated `rules/**/RESULTS.md` files and push.
 
-CI runs the same regeneration in `--check` mode and fails if results weren’t committed.
+CI checks that submodule pointer bumps are accompanied by corresponding `RESULTS.md` updates (it does not re-run LLM benchmarks).
 
 ## Structure
 

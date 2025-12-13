@@ -1,4 +1,4 @@
-name: Verify generated results
+name: Verify results updated for submodule bumps
 
 on:
   pull_request:
@@ -9,7 +9,7 @@ on:
       - "rules/**"
       - "rulesets/**"
       - "scripts/**"
-      - ".github/workflows/verify-results.yml"
+      - ".github/workflows/verify-pr.yml"
 
 permissions:
   contents: read
@@ -21,15 +21,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          submodules: recursive
           ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Fetch base commit
         run: git fetch --no-tags --depth=1 origin ${{ github.event.pull_request.base.sha }}
 
-      - name: Regenerate changed results (check)
+      - name: Verify PR updates results for gitlink changes
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: python3 scripts/generate_changed_results.py --check
+        run: python3 scripts/verify_pr_updates_results.py
 
