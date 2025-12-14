@@ -7,13 +7,13 @@ Runs aggregated: 1
 
 | Case | Off | On | Effectiveness |
 |---|---:|---:|---:|
-| simple_add | 0.00 | 0.50 | +0.50 |
-| stack_ds | 0.00 | 1.00 | +1.00 |
-| simple_add_prompted | 0.50 | 0.50 | +0.00 |
+| 001 | 0.00 | 0.00 | +0.00 |
+| 002 | 0.00 | 1.00 | +1.00 |
+| 003 | 0.00 | 0.00 | +0.00 |
 
 ## Aggregate (weighted)
 
-- Off: `0.17`
-- On: `0.67`
-- Effectiveness: `+0.50`
+- Off: `0.00`
+- On: `0.33`
+- Effectiveness: `+0.33`
 

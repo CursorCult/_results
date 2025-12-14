@@ -56,17 +56,16 @@ def changed_gitlinks(base: str, head: str) -> set[str]:
 
 
 def list_rule_benchmarks() -> list[Path]:
-    rules_root = ROOT / "rules"
-    if not rules_root.is_dir():
+    bench_root = ROOT / "benchmarks"
+    if not bench_root.is_dir():
         return []
     
     benchmarks: list[Path] = []
-    for rule_dir in sorted(rules_root.iterdir()):
-        if not rule_dir.is_dir():
+    for bench_dir in sorted(bench_root.iterdir()):
+        if not bench_dir.is_dir():
             continue
-        benchmark_path = rule_dir / "_benchmark"
-        if benchmark_path.is_dir() and (benchmark_path / ".git").exists():
-            benchmarks.append(benchmark_path)
+        if (bench_dir / ".git").exists():
+            benchmarks.append(bench_dir)
     return benchmarks
 
 
@@ -127,7 +126,7 @@ def aggregate_results(aggregator: Path, input_dir: Path, out_path: Path, working
 
 def process_benchmarks(benchmarks_paths: Iterable[Path], num_runs: int) -> None:
     for bench_path in benchmarks_paths:
-        rule = bench_path.parent.name
+        rule = bench_path.name
         toolchains = find_toolchains(bench_path)
         
         if not toolchains:
@@ -157,7 +156,7 @@ def main(argv: list[str]) -> int:
     if args.all:
         benchmarks_to_process = list_rule_benchmarks()
     elif args.bench:
-        all_benchs = {p.parent.name: p for p in list_rule_benchmarks()}
+        all_benchs = {p.name: p for p in list_rule_benchmarks()}
         for name in args.bench:
             if name in all_benchs:
                 benchmarks_to_process.append(all_benchs[name])
@@ -173,7 +172,7 @@ def main(argv: list[str]) -> int:
                 benchmarks_to_process = list_rule_benchmarks()
             else:
                 for path_str in sorted(changed_submodules):
-                    if path_str.startswith("rules/") and path_str.endswith("/_benchmark"):
+                    if path_str.startswith("benchmarks/"):
                         benchmarks_to_process.append(ROOT / path_str)
 
     if not benchmarks_to_process:

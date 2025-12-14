@@ -29,7 +29,7 @@ Updating a submodule pointer is what triggers “regenerate results”.
 
 ```sh
 git submodule update --init --recursive
-python3 scripts/generate_changed_results.py
+python3 scripts/generate_changed_results.py --bench TDD
 ```
 
 4. Commit the updated `rules/**/RESULTS.md` files and push.

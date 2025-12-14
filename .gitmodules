@@ -1,6 +1,6 @@
 [submodule "_metrics"]
 	path = _metrics
 	url = https://github.com/CursorCult/_metrics.git
-[submodule "rules/TDD/_benchmark"]
-	path = rules/TDD/_benchmark
+[submodule "benchmarks/TDD"]
+	path = benchmarks/TDD
 	url = https://github.com/CursorCult/_benchmark_TDD.git
