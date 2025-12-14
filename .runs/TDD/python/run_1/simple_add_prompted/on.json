@@ -1,0 +1,22 @@
+{
+  "agent_rc": 0,
+  "base_sha": "f58ee7ed8db3bf2705f4e6600aadf7674ad7707a",
+  "case": "simple_add_prompted",
+  "commits": {
+    "count": 2,
+    "last_test": "4e8936c926f2149ed8f5682a914fb53ab5b4e452"
+  },
+  "metrics": {
+    "code_coverage_percent": 100.0
+  },
+  "mode": "on",
+  "score": 0.5,
+  "signals": {
+    "compliance_ok": 1,
+    "coverage_available": 1,
+    "green_ok": 1,
+    "red_ok": 0,
+    "seen_i": 1,
+    "seen_t": 1
+  }
+}

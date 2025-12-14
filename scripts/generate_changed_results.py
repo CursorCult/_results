@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import shutil
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -12,16 +13,23 @@ from typing import Iterable
 
 
 ROOT = Path(__file__).resolve().parents[1]
+RUNS_DIR = ROOT / ".runs"
 
 
 @dataclass(frozen=True)
-class Generator:
+class Toolchain:
     language: str
-    path: Path
+    runner: Path
+    aggregator: Path
 
 
-def run(cmd: list[str], *, cwd: Path | None = None) -> None:
-    proc = subprocess.run(cmd, cwd=str(cwd) if cwd else None, text=True, capture_output=True)
+def run_cmd(cmd: list[str], *, cwd: Path | None = None, env: dict | None = None) -> None:
+    # Merge env if provided
+    final_env = os.environ.copy()
+    if env:
+        final_env.update(env)
+
+    proc = subprocess.run(cmd, cwd=str(cwd) if cwd else None, env=final_env, text=True, capture_output=True)
     if proc.returncode != 0:
         raise RuntimeError(
             f"Command failed ({proc.returncode}): {' '.join(cmd)}\n"
@@ -29,16 +37,10 @@ def run(cmd: list[str], *, cwd: Path | None = None) -> None:
         )
 
 
-def output(cmd: list[str]) -> str:
-    return subprocess.check_output(cmd, text=True).strip()
-
-
 def changed_gitlinks(base: str, head: str) -> set[str]:
     raw = subprocess.check_output(["git", "diff", "--raw", base, head], text=True)
     changed: set[str] = set()
     for line in raw.splitlines():
-        # Example:
-        # :160000 160000 <old> <new> M\t_metrics
         parts = line.split("\t", 1)
         if len(parts) != 2:
             continue
@@ -67,82 +69,78 @@ def list_rule_benchmarks() -> list[Path]:
             benchmarks.append(benchmark_path)
     return benchmarks
 
-# Renamed list_benchmark_dirs to list_rule_benchmarks since it now specifically looks for benchmarks within rule directories.
-# The previous function also checked for submodules, which is retained here.
 
-# ... (rest of the file content remains largely the same, but references to list_benchmark_dirs will be updated) ...
-
-
-def find_generators(benchmark_dir: Path) -> list[Generator]:
-    generators: list[Generator] = []
+def find_toolchains(benchmark_dir: Path) -> list[Toolchain]:
+    toolchains: list[Toolchain] = []
     for child in sorted(benchmark_dir.iterdir()):
         if not child.is_dir():
             continue
         language = child.name
-        py = child / "generate_results.py"
-        sh = child / "generate_results.sh"
-        exe = child / "generate_results"
-        if py.is_file():
-            generators.append(Generator(language=language, path=py))
-        elif sh.is_file():
-            generators.append(Generator(language=language, path=sh))
-        elif exe.is_file():
-            generators.append(Generator(language=language, path=exe))
-    return generators
+        
+        # Look for runner (run_all.sh)
+        runner = child / "run_all.sh"
+        if not runner.exists():
+            runner = child / "run_all"
+        
+        # Look for aggregator (generate_results.py)
+        aggregator = child / "generate_results.py"
 
+        if runner.exists() and aggregator.exists():
+            toolchains.append(Toolchain(language=language, runner=runner, aggregator=aggregator))
+    return toolchains
 
 def ensure_results_path(rule: str, language: str) -> Path:
     out_dir = ROOT / "rules" / rule / language
     out_dir.mkdir(parents=True, exist_ok=True)
     return out_dir / "RESULTS.md"
 
+def execute_runs(rule: str, language: str, runner: Path, num_runs: int, working_dir: Path) -> Path:
+    """Executes the runner N times, collecting output in a temp directory."""
+    runs_storage = RUNS_DIR / rule / language
+    if runs_storage.exists():
+        shutil.rmtree(runs_storage)
+    runs_storage.mkdir(parents=True, exist_ok=True)
 
-def run_generator(*, benchmark_dir: Path, generator: Generator, out_path: Path) -> None:
-    env = os.environ.copy()
-    env["OUTPUT_PATH"] = str(out_path)
-    env["RESULTS_ROOT"] = str(ROOT)
+    print(f"Running {rule}/{language} x{num_runs}...")
+    for i in range(1, num_runs + 1):
+        run_id = f"run_{i}"
+        run_output_dir = runs_storage / run_id
+        run_output_dir.mkdir()
+        
+        print(f"  Iteration {i}/{num_runs}")
+        
+        cmd = ["bash", str(runner), str(run_output_dir)]
+        run_cmd(cmd, cwd=working_dir)
+    
+    return runs_storage
 
-    cmd: list[str]
-    if generator.path.suffix == ".py":
-        cmd = [
-            "python3",
-            str(generator.path),
-            "--output",
-            str(out_path),
-        ]
-    elif generator.path.suffix == ".sh":
-        cmd = ["bash", str(generator.path)]
-    else:
-        cmd = [str(generator.path)]
+def aggregate_results(aggregator: Path, input_dir: Path, out_path: Path, working_dir: Path) -> None:
+    print(f"Aggregating {input_dir} -> {out_path.relative_to(ROOT)}")
+    
+    cmd = [
+        "python3", str(aggregator),
+        "--input-dir", str(input_dir),
+        "--output", str(out_path)
+    ]
+    # We run aggregator in the language dir (working_dir) so it can find weights.json etc.
+    run_cmd(cmd, cwd=working_dir)
 
-    proc = subprocess.run(cmd, cwd=str(benchmark_dir), env=env, text=True, capture_output=True)
-    if proc.returncode != 0:
-        raise RuntimeError(
-            f"Generator failed: {generator.path}\n{proc.stderr.strip() or proc.stdout.strip()}"
-        )
-
-    if out_path.exists():
-        return
-    if proc.stdout.strip():
-        out_path.write_text(proc.stdout, encoding="utf-8")
-        return
-    raise RuntimeError(
-        f"Generator produced no output file and no stdout: {generator.path}"
-    )
-
-
-def generate_for_benchmarks(benchmarks_paths: Iterable[Path]) -> None:
+def process_benchmarks(benchmarks_paths: Iterable[Path], num_runs: int) -> None:
     for bench_path in benchmarks_paths:
         rule = bench_path.parent.name
-        gens = find_generators(bench_path)
-        if not gens:
-            print(f"skip: {rule} (no generate_results.* found)", file=sys.stderr)
+        toolchains = find_toolchains(bench_path)
+        
+        if not toolchains:
+            print(f"skip: {rule} (no run_all.sh + generate_results.py found)", file=sys.stderr)
             continue
-        for gen in gens:
-            out_path = ensure_results_path(rule, gen.language)
-            print(f"run: {rule}/{gen.language} -> {out_path.relative_to(ROOT)}")
-            run_generator(benchmark_dir=bench_path, generator=gen, out_path=out_path)
-
+            
+        for tc in toolchains:
+            # Execute Runs
+            runs_dir = execute_runs(rule, tc.language, tc.runner, num_runs, working_dir=bench_path / tc.language)
+            
+            # Aggregate
+            out_path = ensure_results_path(rule, tc.language)
+            aggregate_results(tc.aggregator, runs_dir, out_path, working_dir=bench_path / tc.language)
 
 def main(argv: list[str]) -> int:
     p = argparse.ArgumentParser(description="Regenerate benchmark results.")
@@ -151,6 +149,7 @@ def main(argv: list[str]) -> int:
     p.add_argument("--check", action="store_true", help="Fail if regeneration changes tracked files.")
     p.add_argument("--all", action="store_true", help="Regenerate all benchmarks.")
     p.add_argument("--bench", action="append", help="Regenerate specific benchmark (e.g. 'TDD').")
+    p.add_argument("--runs", type=int, default=1, help="Number of iterations per benchmark.")
     args = p.parse_args(argv)
 
     benchmarks_to_process: list[Path] = [] 
@@ -176,20 +175,17 @@ def main(argv: list[str]) -> int:
                 for path_str in sorted(changed_submodules):
                     if path_str.startswith("rules/") and path_str.endswith("/_benchmark"):
                         benchmarks_to_process.append(ROOT / path_str)
-        # No else needed here, benchmarks_to_process will remain empty if no changes and no --all/--bench
 
     if not benchmarks_to_process:
         if not (args.all or args.bench):
             print("No benchmark submodule changes detected. Use --all or --bench to force run.")
     else:
-        generate_for_benchmarks(benchmarks_to_process)
+        process_benchmarks(benchmarks_to_process, args.runs)
 
     if args.check:
-        # Ensure results are committed.
-        run(["git", "diff", "--exit-code"])
+        run_cmd(["git", "diff", "--exit-code"])
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main(sys.argv[1:]))
-
