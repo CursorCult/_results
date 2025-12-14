@@ -1,14 +1,16 @@
 # Results: `TDD` (python)
 
-Benchmark repo: `CursorCult/_benchmark_TDD` (TBD)
+Benchmark repo: `CursorCult/_benchmark_TDD`
 
-## Summary
+## Per-case
 
-This file tracks benchmark results for the `TDD` rule over time.
+| Case | Off | On | Effectiveness |
+|---|---:|---:|---:|
+| 001 | 0.20 | 0.20 | +0.00 |
 
-## Results by version
+## Aggregate (weighted)
 
-| Rule version | Metric | Value | Notes |
-|---|---:|---:|---|
-| v0 | example_metric | 0.0 | placeholder |
+- Off: `0.20`
+- On: `0.20`
+- Effectiveness: `+0.00`
 

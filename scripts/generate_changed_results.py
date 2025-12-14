@@ -146,27 +146,41 @@ def generate_for_benchmarks(benchmarks: Iterable[Path]) -> None:
 
 
 def main(argv: list[str]) -> int:
-    p = argparse.ArgumentParser(description="Regenerate benchmark results for changed submodules.")
+    p = argparse.ArgumentParser(description="Regenerate benchmark results.")
     p.add_argument("--base", help="Base commit SHA (for PRs).")
     p.add_argument("--head", help="Head commit SHA (for PRs).")
     p.add_argument("--check", action="store_true", help="Fail if regeneration changes tracked files.")
+    p.add_argument("--all", action="store_true", help="Regenerate all benchmarks.")
+    p.add_argument("--bench", action="append", help="Regenerate specific benchmark (e.g. 'TDD').")
     args = p.parse_args(argv)
 
-    base = args.base or os.getenv("BASE_SHA")
-    head = args.head or os.getenv("HEAD_SHA")
-
-    if base and head:
-        changed = changed_gitlinks(base, head)
-    else:
-        changed = set()
-
-    if "_metrics" in changed:
+    benchmarks: list[Path] = []
+    
+    if args.all:
         benchmarks = list_benchmark_dirs()
+    elif args.bench:
+        all_benchs = {b.name: b for b in list_benchmark_dirs()}
+        for name in args.bench:
+            if name in all_benchs:
+                benchmarks.append(all_benchs[name])
+            else:
+                print(f"Benchmark not found: {name}", file=sys.stderr)
     else:
-        benchmarks = [ROOT / path for path in sorted(changed) if path.startswith("benchmarks/")]
+        base = args.base or os.getenv("BASE_SHA")
+        head = args.head or os.getenv("HEAD_SHA")
+
+        if base and head:
+            changed = changed_gitlinks(base, head)
+            if "_metrics" in changed:
+                benchmarks = list_benchmark_dirs()
+            else:
+                benchmarks = [ROOT / path for path in sorted(changed) if path.startswith("benchmarks/")]
+        else:
+            changed = set()
 
     if not benchmarks:
-        print("No benchmark submodule changes detected.")
+        if not (args.all or args.bench):
+            print("No benchmark submodule changes detected. Use --all or --bench to force run.")
     else:
         generate_for_benchmarks(benchmarks)
 
