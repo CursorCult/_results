@@ -17,20 +17,21 @@ Benchmarks should publish their results here via PRs so results are:
 This repo pins the exact versions used to generate results via git submodules:
 
 - `_metrics/` -> `CursorCult/_metrics` (standard metrics)
-- `benchmarks/<RULE>/` -> `CursorCult/_benchmark_<RULE>` (rule benchmark implementation)
+- `rules/<RULE>/_benchmark/` -> `CursorCult/_benchmark_<RULE>` (rule benchmark implementation)
 
 Updating a submodule pointer is what triggers “regenerate results”.
 
 ## Workflow (PR-driven regeneration)
 
 1. Open a PR against `CursorCult/_results`.
-2. Update one or more submodules (e.g. bump `_metrics`, or bump `benchmarks/TDD`).
-3. Regenerate results for what changed:
+2. Update one or more submodules (e.g. bump `_metrics`, or bump `rules/TDD/_benchmark`).
+3. Regenerate results for what changed. The `scripts/generate_changed_results.py` script now orchestrates running the benchmarks multiple times and averaging the results:
 
 ```sh
 git submodule update --init --recursive
-python3 scripts/generate_changed_results.py --bench TDD
+python3 scripts/generate_changed_results.py --bench TDD --runs 10
 ```
+    - `--runs N`: Specifies the number of times to execute each benchmark case. Results are averaged.
 
 4. Commit the updated `rules/**/RESULTS.md` files and push.
 
