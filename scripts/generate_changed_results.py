@@ -53,18 +53,24 @@ def changed_gitlinks(base: str, head: str) -> set[str]:
     return changed
 
 
-def list_benchmark_dirs() -> list[Path]:
-    benchmarks_root = ROOT / "benchmarks"
-    if not benchmarks_root.is_dir():
+def list_rule_benchmarks() -> list[Path]:
+    rules_root = ROOT / "rules"
+    if not rules_root.is_dir():
         return []
-    dirs: list[Path] = []
-    for child in sorted(benchmarks_root.iterdir()):
-        if not child.is_dir():
+    
+    benchmarks: list[Path] = []
+    for rule_dir in sorted(rules_root.iterdir()):
+        if not rule_dir.is_dir():
             continue
-        # Submodules have a .git file inside the directory in a working tree.
-        if (child / ".git").exists():
-            dirs.append(child)
-    return dirs
+        benchmark_path = rule_dir / "_benchmark"
+        if benchmark_path.is_dir() and (benchmark_path / ".git").exists():
+            benchmarks.append(benchmark_path)
+    return benchmarks
+
+# Renamed list_benchmark_dirs to list_rule_benchmarks since it now specifically looks for benchmarks within rule directories.
+# The previous function also checked for submodules, which is retained here.
+
+# ... (rest of the file content remains largely the same, but references to list_benchmark_dirs will be updated) ...
 
 
 def find_generators(benchmark_dir: Path) -> list[Generator]:
@@ -128,21 +134,21 @@ def run_generator(*, benchmark_dir: Path, generator: Generator, metrics_dir: Pat
     )
 
 
-def generate_for_benchmarks(benchmarks: Iterable[Path]) -> None:
+def generate_for_benchmarks(benchmarks_paths: Iterable[Path]) -> None:
     metrics_dir = ROOT / "_metrics"
     if not metrics_dir.is_dir():
         raise RuntimeError("Missing _metrics submodule; run `git submodule update --init --recursive`.")
 
-    for bench_dir in benchmarks:
-        rule = bench_dir.name
-        gens = find_generators(bench_dir)
+    for bench_path in benchmarks_paths:
+        rule = bench_path.parent.name
+        gens = find_generators(bench_path)
         if not gens:
             print(f"skip: {rule} (no generate_results.* found)", file=sys.stderr)
             continue
         for gen in gens:
             out_path = ensure_results_path(rule, gen.language)
             print(f"run: {rule}/{gen.language} -> {out_path.relative_to(ROOT)}")
-            run_generator(benchmark_dir=bench_dir, generator=gen, metrics_dir=metrics_dir, out_path=out_path)
+            run_generator(benchmark_dir=bench_path, generator=gen, metrics_dir=metrics_dir, out_path=out_path)
 
 
 def main(argv: list[str]) -> int:
@@ -154,15 +160,15 @@ def main(argv: list[str]) -> int:
     p.add_argument("--bench", action="append", help="Regenerate specific benchmark (e.g. 'TDD').")
     args = p.parse_args(argv)
 
-    benchmarks: list[Path] = []
+    benchmarks_to_process: list[Path] = [] 
     
     if args.all:
-        benchmarks = list_benchmark_dirs()
+        benchmarks_to_process = list_rule_benchmarks()
     elif args.bench:
-        all_benchs = {b.name: b for b in list_benchmark_dirs()}
+        all_benchs = {p.parent.name: p for p in list_rule_benchmarks()}
         for name in args.bench:
             if name in all_benchs:
-                benchmarks.append(all_benchs[name])
+                benchmarks_to_process.append(all_benchs[name])
             else:
                 print(f"Benchmark not found: {name}", file=sys.stderr)
     else:
@@ -170,19 +176,20 @@ def main(argv: list[str]) -> int:
         head = args.head or os.getenv("HEAD_SHA")
 
         if base and head:
-            changed = changed_gitlinks(base, head)
-            if "_metrics" in changed:
-                benchmarks = list_benchmark_dirs()
+            changed_submodules = changed_gitlinks(base, head)
+            if "_metrics" in changed_submodules:
+                benchmarks_to_process = list_rule_benchmarks()
             else:
-                benchmarks = [ROOT / path for path in sorted(changed) if path.startswith("benchmarks/")]
-        else:
-            changed = set()
+                for path_str in sorted(changed_submodules):
+                    if path_str.startswith("rules/") and path_str.endswith("/_benchmark"):
+                        benchmarks_to_process.append(ROOT / path_str)
+        # No else needed here, benchmarks_to_process will remain empty if no changes and no --all/--bench
 
-    if not benchmarks:
+    if not benchmarks_to_process:
         if not (args.all or args.bench):
             print("No benchmark submodule changes detected. Use --all or --bench to force run.")
     else:
-        generate_for_benchmarks(benchmarks)
+        generate_for_benchmarks(benchmarks_to_process)
 
     if args.check:
         # Ensure results are committed.
