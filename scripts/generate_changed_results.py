@@ -97,9 +97,8 @@ def ensure_results_path(rule: str, language: str) -> Path:
     return out_dir / "RESULTS.md"
 
 
-def run_generator(*, benchmark_dir: Path, generator: Generator, metrics_dir: Path, out_path: Path) -> None:
+def run_generator(*, benchmark_dir: Path, generator: Generator, out_path: Path) -> None:
     env = os.environ.copy()
-    env["METRICS_DIR"] = str(metrics_dir)
     env["OUTPUT_PATH"] = str(out_path)
     env["RESULTS_ROOT"] = str(ROOT)
 
@@ -108,8 +107,6 @@ def run_generator(*, benchmark_dir: Path, generator: Generator, metrics_dir: Pat
         cmd = [
             "python3",
             str(generator.path),
-            "--metrics-dir",
-            str(metrics_dir),
             "--output",
             str(out_path),
         ]
@@ -135,10 +132,6 @@ def run_generator(*, benchmark_dir: Path, generator: Generator, metrics_dir: Pat
 
 
 def generate_for_benchmarks(benchmarks_paths: Iterable[Path]) -> None:
-    metrics_dir = ROOT / "_metrics"
-    if not metrics_dir.is_dir():
-        raise RuntimeError("Missing _metrics submodule; run `git submodule update --init --recursive`.")
-
     for bench_path in benchmarks_paths:
         rule = bench_path.parent.name
         gens = find_generators(bench_path)
@@ -148,7 +141,7 @@ def generate_for_benchmarks(benchmarks_paths: Iterable[Path]) -> None:
         for gen in gens:
             out_path = ensure_results_path(rule, gen.language)
             print(f"run: {rule}/{gen.language} -> {out_path.relative_to(ROOT)}")
-            run_generator(benchmark_dir=bench_path, generator=gen, metrics_dir=metrics_dir, out_path=out_path)
+            run_generator(benchmark_dir=bench_path, generator=gen, out_path=out_path)
 
 
 def main(argv: list[str]) -> int:
